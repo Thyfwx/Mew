@@ -1,3 +1,166 @@
-new coming-soon
+import pygame
+import random
 
-Hello world
+# --- Constants ---
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+BACKGROUND_COLOR = (128, 128, 128) # Gray
+
+# Player settings
+PLAYER_SIZE = 40
+PLAYER_COLOR = (0, 255, 0) # Green
+PLAYER_START_X = SCREEN_WIDTH // 2 - PLAYER_SIZE // 2
+PLAYER_START_Y = SCREEN_HEIGHT - PLAYER_SIZE - 10
+PLAYER_STEP = 50 # How far the player moves in one key press
+
+# Obstacle settings
+OBSTACLE_WIDTH = 80
+OBSTACLE_HEIGHT = 40
+OBSTACLE_COLOR = (255, 0, 0) # Red
+OBSTACLE_SPEED_RANGE = (2, 5)
+
+# Game zones
+SAFE_ZONE_COLOR = (0, 128, 0) # Dark Green
+ROAD_COLOR = (50, 50, 50) # Dark Gray
+FINISH_LINE_COLOR = (255, 255, 0) # Yellow
+
+# --- Game Setup ---
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Mini Crossy Road")
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 74)
+
+# --- Classes ---
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface([PLAYER_SIZE, PLAYER_SIZE])
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.reset()
+
+    def reset(self):
+        """Resets the player to the starting position."""
+        self.rect.x = PLAYER_START_X
+        self.rect.y = PLAYER_START_Y
+
+    def move(self, dx, dy):
+        """Move the player and keep them within the screen bounds."""
+        if 0 <= self.rect.x + dx <= SCREEN_WIDTH - PLAYER_SIZE:
+            self.rect.x += dx
+        if 0 <= self.rect.y + dy <= SCREEN_HEIGHT - PLAYER_SIZE:
+            self.rect.y += dy
+
+class Obstacle(pygame.sprite.Sprite):
+    def __init__(self, y_pos, direction):
+        super().__init__()
+        self.image = pygame.Surface([OBSTACLE_WIDTH, OBSTACLE_HEIGHT])
+        self.image.fill(OBSTACLE_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.y = y_pos
+        self.direction = direction
+        self.speed = random.randint(OBSTACLE_SPEED_RANGE[0], OBSTACLE_SPEED_RANGE[1])
+
+        # Set starting position based on direction
+        if self.direction == 1: # Moves right
+            self.rect.x = random.randint(-SCREEN_WIDTH, -OBSTACLE_WIDTH)
+        else: # Moves left
+            self.rect.x = random.randint(SCREEN_WIDTH, SCREEN_WIDTH * 2)
+
+    def update(self):
+        """Move the obstacle and wrap it around the screen."""
+        self.rect.x += self.speed * self.direction
+        if self.direction == 1 and self.rect.left > SCREEN_WIDTH:
+            self.rect.right = 0
+        elif self.direction == -1 and self.rect.right < 0:
+            self.rect.left = SCREEN_WIDTH
+
+# --- Create Game Objects ---
+player = Player()
+all_sprites = pygame.sprite.Group()
+all_sprites.add(player)
+
+obstacles = pygame.sprite.Group()
+
+# Create lanes of obstacles
+lane_y_positions = [100, 150, 250, 300, 400, 450]
+for y in lane_y_positions:
+    direction = random.choice([-1, 1])
+    for _ in range(3): # Number of cars per lane
+        obstacle = Obstacle(y, direction)
+        obstacles.add(obstacle)
+        all_sprites.add(obstacle)
+
+# --- Game Loop ---
+running = True
+game_over = False
+win = False
+
+while running:
+    # Event Handling
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        if event.type == pygame.KEYDOWN and not game_over:
+            if event.key == pygame.K_UP:
+                player.move(0, -PLAYER_STEP)
+            elif event.key == pygame.K_DOWN:
+                player.move(0, PLAYER_STEP)
+            elif event.key == pygame.K_LEFT:
+                player.move(-PLAYER_STEP, 0)
+            elif event.key == pygame.K_RIGHT:
+                player.move(PLAYER_STEP, 0)
+        if event.type == pygame.KEYDOWN and game_over:
+            if event.key == pygame.K_r: # Press 'R' to restart
+                game_over = False
+                win = False
+                player.reset()
+
+
+    # Game Logic
+    if not game_over:
+        obstacles.update()
+
+        # Check for collision with obstacles
+        if pygame.sprite.spritecollide(player, obstacles, False):
+            game_over = True
+            win = False
+
+        # Check for reaching the finish line
+        if player.rect.y < PLAYER_STEP:
+            game_over = True
+            win = True
+
+    # Drawing
+    # Draw background zones
+    screen.fill(BACKGROUND_COLOR)
+    pygame.draw.rect(screen, SAFE_ZONE_COLOR, (0, SCREEN_HEIGHT - PLAYER_STEP, SCREEN_WIDTH, PLAYER_STEP))
+    pygame.draw.rect(screen, SAFE_ZONE_COLOR, (0, 200, SCREEN_WIDTH, PLAYER_STEP))
+    pygame.draw.rect(screen, SAFE_ZONE_COLOR, (0, 350, SCREEN_WIDTH, PLAYER_STEP))
+    pygame.draw.rect(screen, FINISH_LINE_COLOR, (0, 0, SCREEN_WIDTH, PLAYER_STEP))
+
+
+    all_sprites.draw(screen)
+
+    # Display game over or win message
+    if game_over:
+        if win:
+            text = font.render("YOU WIN!", True, (255, 255, 255))
+        else:
+            text = font.render("GAME OVER", True, (255, 255, 255))
+        text_rect = text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 - 50))
+        screen.blit(text, text_rect)
+        
+        restart_text = pygame.font.Font(None, 40).render("Press 'R' to Restart", True, (255, 255, 255))
+        restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2 + 20))
+        screen.blit(restart_text, restart_rect)
+
+
+    # Update the display
+    pygame.display.flip()
+
+    # Frame rate
+    clock.tick(60)
+
+pygame.quit()
